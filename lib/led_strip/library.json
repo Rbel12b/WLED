@@ -1,0 +1,9 @@
+{
+  "name": "led_strip",
+  "version": "3.0.3",
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include",
+    "extraIncludes": ["src"]
+  }
+}

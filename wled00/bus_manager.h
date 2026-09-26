@@ -19,6 +19,12 @@
 #include <memory>
 #ifdef ARDUINO_ARCH_ESP32
 #include "asyncDNS.h"
+#include "esp_idf_version.h"
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#include "led_strip.h"
+#include "led_strip_rmt.h"
+#define WLED_WS2816_NATIVE 1
+#endif
 #endif
 
 #if __cplusplus >= 201402L
@@ -286,6 +292,9 @@ class BusDigital : public Bus {
     uint16_t _milliAmpsLimit;
     uint32_t _colorSum; // total color value for the bus, updated in setPixelColor(), used to estimate current
     void    *_busPtr;
+#ifdef WLED_WS2816_NATIVE
+    uint8_t *_pixelBuf; // 8-bit RGB cache for WS2816 native RMT path (nullptr for all other types)
+#endif
 
     static uint16_t _milliAmpsTotal; // is overwitten/recalculated on each show()
 

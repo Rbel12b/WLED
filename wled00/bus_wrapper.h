@@ -215,11 +215,11 @@
 #define B_8266_U1_SM16825_5 NeoPixelBus<NeoRgbwcSm16825eFeature, NeoEsp8266Uart1Ws2813Method>
 #define B_8266_DM_SM16825_5 NeoPixelBus<NeoRgbwcSm16825eFeature, NeoEsp8266Dma800KbpsMethod>
 #define B_8266_BB_SM16825_5 NeoPixelBus<NeoRgbwcSm16825eFeature, NeoEsp8266BitBangWs2813Method>
-//WS2816 (RGB 16-bit, RGB wire order)
-#define B_8266_U0_WS16_3 NeoPixelBus<NeoRgb48Feature, NeoEsp8266Uart0Ws2813Method>
-#define B_8266_U1_WS16_3 NeoPixelBus<NeoRgb48Feature, NeoEsp8266Uart1Ws2813Method>
-#define B_8266_DM_WS16_3 NeoPixelBus<NeoRgb48Feature, NeoEsp8266Dma800KbpsMethod>
-#define B_8266_BB_WS16_3 NeoPixelBus<NeoRgb48Feature, NeoEsp8266BitBang800KbpsMethod>
+//WS2816 (RGB 16-bit, GRB wire order, SK6812 timing: T0H=300ns within WS2816C spec of 200-320ns)
+#define B_8266_U0_WS16_3 NeoPixelBus<NeoGrb48Feature, NeoEsp8266Uart0Sk6812Method>
+#define B_8266_U1_WS16_3 NeoPixelBus<NeoGrb48Feature, NeoEsp8266Uart1Sk6812Method>
+#define B_8266_DM_WS16_3 NeoPixelBus<NeoGrb48Feature, NeoEsp8266DmaSk6812Method>
+#define B_8266_BB_WS16_3 NeoPixelBus<NeoGrb48Feature, NeoEsp8266BitBangSk6812Method>
 #endif
 
 /*** ESP32 Neopixel methods ***/
@@ -326,10 +326,10 @@
 #define B_32_RN_SM16825_5 NeoPixelBus<NeoRgbcwSm16825eFeature, NeoEsp32RmtMethod(Ws2812x)>
 #define B_32_I2_SM16825_5 NeoPixelBus<NeoRgbcwSm16825eFeature, X1Ws2812xMethod>
 #define B_32_IP_SM16825_5 NeoPixelBus<NeoRgbcwSm16825eFeature, X8Ws2812xMethod> // parallel I2S
-//WS2816 (RGB 16-bit, RGB wire order)
-#define B_32_RN_WS16_3 NeoPixelBus<NeoRgb48Feature, NeoEsp32RmtMethod(Ws2812x)>
-#define B_32_I2_WS16_3 NeoPixelBus<NeoRgb48Feature, X1800KbpsMethod>
-#define B_32_IP_WS16_3 NeoPixelBus<NeoRgb48Feature, X8800KbpsMethod> // parallel I2S
+//WS2816 (RGB 16-bit, GRB wire order, SK6812 timing: T0H=300ns within WS2816C spec of 200-320ns)
+#define B_32_RN_WS16_3 NeoPixelBus<NeoGrb48Feature, NeoEsp32RmtMethod(Sk6812)>
+#define B_32_I2_WS16_3 NeoPixelBus<NeoGrb48Feature, X1Sk6812Method>
+#define B_32_IP_WS16_3 NeoPixelBus<NeoGrb48Feature, X8Sk6812Method> // parallel I2S
 #endif
 
 //APA102

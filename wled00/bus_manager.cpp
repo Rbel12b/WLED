@@ -136,6 +136,43 @@ BusDigital::BusDigital(const BusConfig &bc)
 {
   DEBUGBUS_PRINTLN(F("Bus: Creating digital bus."));
   if (!isDigital(bc.type) || !bc.count) { DEBUGBUS_PRINTLN(F("Not digial or empty bus!")); return; }
+#ifdef WLED_WS2816_NATIVE
+  _pixelBuf = nullptr;
+  if (bc.type == TYPE_WS2816) {
+    if (!PinManager::allocatePin(bc.pins[0], true, PinOwner::BusDigital)) { DEBUGBUS_PRINTLN(F("WS2816: Pin 0 allocated!")); return; }
+    _pins[0] = bc.pins[0];
+    _frequencykHz = 0U;
+    _colorSum = 0;
+    _iType = I_NONE; // sentinel: not a PolyBus bus
+    _hasRgb = true; _hasWhite = false; _hasCCT = false;
+    _pixelBuf = new uint8_t[bc.count * 3](); // zero-init 8-bit RGB cache
+    led_strip_config_t ws_cfg = {
+      .strip_gpio_num         = bc.pins[0],
+      .max_leds               = bc.count,
+      .led_model              = LED_MODEL_WS2816C,
+      .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB_16,
+      .flags                  = { .invert_out = false },
+    };
+    led_strip_rmt_config_t ws_rmt = {
+      .clk_src           = RMT_CLK_SRC_DEFAULT,
+      .resolution_hz     = 10000000U, // 10 MHz
+      .mem_block_symbols = 64,
+      .flags             = { .with_dma = false },
+    };
+    led_strip_handle_t strip = nullptr;
+    esp_err_t err = led_strip_new_rmt_device(&ws_cfg, &ws_rmt, &strip);
+    if (err == ESP_OK && strip) {
+      _busPtr = strip;
+      _valid  = true;
+      led_strip_clear(strip);
+    } else {
+      DEBUGBUS_PRINTLN(F("WS2816: led_strip_new_rmt_device failed!"));
+      delete[] _pixelBuf; _pixelBuf = nullptr;
+      PinManager::deallocatePin(_pins[0], PinOwner::BusDigital);
+    }
+    return;
+  }
+#endif
   _iType = bc.iType; // reuse the iType that was determined by polyBus in getI() in finalizeInit()
   if (_iType == I_NONE) { DEBUGBUS_PRINTLN(F("Incorrect iType!")); return; }
 
@@ -226,6 +263,22 @@ void BusDigital::applyBriLimit(uint8_t newBri) {
 
   if (newBri < 255) {
     _NPBbri = newBri; // store value so it can be updated in show() (must be updated even if ABL is not used)
+#ifdef WLED_WS2816_NATIVE
+    if (_type == TYPE_WS2816 && _pixelBuf) {
+      for (unsigned i = 0; i < _len; i++) {
+        uint8_t r = (((uint32_t)_pixelBuf[i*3]   + 1) * newBri) >> 8;
+        uint8_t g = (((uint32_t)_pixelBuf[i*3+1] + 1) * newBri) >> 8;
+        uint8_t b = (((uint32_t)_pixelBuf[i*3+2] + 1) * newBri) >> 8;
+        _pixelBuf[i*3] = r; _pixelBuf[i*3+1] = g; _pixelBuf[i*3+2] = b;
+        led_strip_set_pixel((led_strip_handle_t)_busPtr, i,
+                            (uint32_t)r * 257u,
+                            (uint32_t)g * 257u,
+                            (uint32_t)b * 257u);
+      }
+      _colorSum = 0;
+      return;
+    }
+#endif
     uint16_t wwcw = 0;
     unsigned hwLen = _len;
     if (_type == TYPE_WS2812_1CH_X3) hwLen = NUM_ICS_WS2812_1CH_3X(_len); // only needs a third of "RGB" LEDs for NeoPixelBus
@@ -248,12 +301,22 @@ void BusDigital::applyBriLimit(uint8_t newBri) {
 
 void BusDigital::show() {
   if (!_valid) return;
+#ifdef WLED_WS2816_NATIVE
+  if (_type == TYPE_WS2816) {
+    _NPBbri = (_NPBbri * _bri) / 255;
+    led_strip_refresh((led_strip_handle_t)_busPtr);
+    return;
+  }
+#endif
   _NPBbri = (_NPBbri * _bri) / 255;      // total applied brightness for use in restoreColorLossy (see applyBriLimit())
   PolyBus::show(_busPtr, _iType, _skip); // faster if buffer consistency is not important (no skipped LEDs)
 }
 
 bool BusDigital::canShow() const {
   if (!_valid) return true;
+#ifdef WLED_WS2816_NATIVE
+  if (_type == TYPE_WS2816) return true;
+#endif
   return PolyBus::canShow(_busPtr, _iType);
 }
 
@@ -305,6 +368,19 @@ void IRAM_ATTR BusDigital::setPixelColor(unsigned pix, uint32_t c) {
     }
   }
 
+#ifdef WLED_WS2816_NATIVE
+  if (_type == TYPE_WS2816 && _pixelBuf) {
+    uint8_t r8 = R(c), g8 = G(c), b8 = B(c);
+    _pixelBuf[pix*3]   = r8;
+    _pixelBuf[pix*3+1] = g8;
+    _pixelBuf[pix*3+2] = b8;
+    led_strip_set_pixel((led_strip_handle_t)_busPtr, pix,
+                        (uint32_t)r8 * 257u,
+                        (uint32_t)g8 * 257u,
+                        (uint32_t)b8 * 257u);
+    return;
+  }
+#endif
   PolyBus::setPixelColor(_busPtr, _iType, pix, c, co, wwcw);
 }
 
@@ -313,6 +389,12 @@ uint32_t IRAM_ATTR BusDigital::getPixelColor(unsigned pix) const {
   if (!_valid) return 0;
   if (_reversed) pix = _len - pix -1;
   pix += _skip;
+#ifdef WLED_WS2816_NATIVE
+  if (_type == TYPE_WS2816 && _pixelBuf) {
+    uint8_t r = _pixelBuf[pix*3], g = _pixelBuf[pix*3+1], b = _pixelBuf[pix*3+2];
+    return restoreColorLossy(RGBW32(r, g, b, 0), _NPBbri);
+  }
+#endif
   const uint8_t co = _colorOrderMap.getPixelColorOrder(pix+_start, _colorOrder);
   uint32_t c = restoreColorLossy(PolyBus::getPixelColor(_busPtr, _iType, (_type==TYPE_WS2812_1CH_X3) ? IC_INDEX_WS2812_1CH_3X(pix) : pix, co),_NPBbri);
   if (_type == TYPE_WS2812_1CH_X3) { // map to correct IC, each controls 3 LEDs
@@ -339,6 +421,9 @@ size_t BusDigital::getPins(uint8_t* pinArray) const {
 }
 
 size_t BusDigital::getBusSize() const {
+#ifdef WLED_WS2816_NATIVE
+  if (_type == TYPE_WS2816) return sizeof(BusDigital) + (_len * 3);
+#endif
   return sizeof(BusDigital) + (isOk() ? PolyBus::getDataSize(_busPtr, _iType) : 0); // does not include common I2S DMA buffer
 }
 
@@ -385,6 +470,16 @@ void BusDigital::begin() {
 
 void BusDigital::cleanup() {
   DEBUGBUS_PRINTLN(F("Digital Cleanup."));
+#ifdef WLED_WS2816_NATIVE
+  if (_type == TYPE_WS2816) {
+    if (_busPtr) { led_strip_del((led_strip_handle_t)_busPtr); _busPtr = nullptr; }
+    if (_pixelBuf) { delete[] _pixelBuf; _pixelBuf = nullptr; }
+    _iType = I_NONE;
+    _valid = false;
+    PinManager::deallocatePin(_pins[0], PinOwner::BusDigital);
+    return;
+  }
+#endif
   PolyBus::cleanup(_busPtr, _iType);
   _iType = I_NONE;
   _valid = false;
