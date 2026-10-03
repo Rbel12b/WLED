@@ -3,6 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+#ifdef ESP32
 #include <stdlib.h>
 #include <string.h>
 #include <sys/cdefs.h>
@@ -197,3 +198,5 @@ err:
     }
     return ret;
 }
+
+#endif

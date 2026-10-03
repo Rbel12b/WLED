@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifdef ESP32
+
 #include "sdkconfig.h"
 #include "esp_idf_version.h"
 #include "esp_check.h"
@@ -210,3 +212,5 @@ err:
     }
     return ret;
 }
+
+#endif
